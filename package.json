@@ -2,14 +2,18 @@
   "name": "backend-project",
   "version": "1.0.0",
   "description": "a profetional standards backend project",
+  "type": "module",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "Dev": "nodemon src/index.js "
   },
   "keywords": [
     "javascript",
     "backend"
   ],
   "author": "shatansh patel",
-  "license": "ISC"
+  "license": "ISC",
+  "devDependencies": {
+    "nodemon": "^3.1.11"
+  }
 }
