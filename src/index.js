@@ -18,6 +18,9 @@ connectDb()
   .catch((error) => {
     console.log("MONGO DB CONNECTION FAILED!!", error);
   });
+  console.log("ACCESS:", process.env.ACCESS_SECRET_TOKEN);
+console.log("REFRESH:", process.env.REFRESH_TOKEN_SECRET);
+
 
 /*
 import express from "express";

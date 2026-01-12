@@ -5,19 +5,23 @@ import { uploadOnClaudinary } from "../utils/claudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 
 const generateRefreshAndAccessToken = async (userId) => {
+  const user = await User.findById(userId);
+
+  if (!user) {
+    throw new ApiError(404, "User not found while generating tokens");
+  }
+
   try {
-    const user = await User.findById(userId);
     const accessToken = user.generateAccessToken();
-    const refreshToken = user.generateAccessToken();
+    const refreshToken = user.generateRefreshToken();
+
     user.refreshToken = refreshToken;
     await user.save({ validateBeforeSave: false });
 
     return { accessToken, refreshToken };
   } catch (error) {
-    throw new ApiError(
-      500,
-      "something went wrong while generation access and refresh token"
-    );
+    console.error("TOKEN GENERATION ERROR 👉", error);
+    throw new ApiError(500, error.message);
   }
 };
 
@@ -98,7 +102,7 @@ const loginUser = asyncHandler(async (req, res) => {
   // send karenge cookie ke form me
 
   const { username, email, password } = req.body;
-  if (!username || !email) {
+  if (!(username || email)) {
     throw new ApiError(400, "username or email is a required field");
   }
   const user = await User.findOne({
@@ -108,7 +112,7 @@ const loginUser = asyncHandler(async (req, res) => {
   if (!user) {
     throw new ApiError(404, "user does not exist");
   }
-  const isPasswordValid = user.isPasswordCorrect(password);
+  const isPasswordValid = await user.isPasswordCorrect(password);
   if (!isPasswordValid) {
     throw new ApiError(404, "invalid user credential");
   }
@@ -121,12 +125,14 @@ const loginUser = asyncHandler(async (req, res) => {
 
   const options = {
     httpOnly: true,
+
     secure: true,
   };
   return res
     .status(200)
-    .cookie("accessToken:", accessToken, options)
-    .cookie("refreshToken:", refreshToken, options)
+    .cookie("accessToken", accessToken, options)
+    .cookie("refreshToken", refreshToken, options)
+
     .json(
       new ApiResponse(
         200,
@@ -158,8 +164,8 @@ const logoutUser = asyncHandler(async (req, res) => {
   };
   return res
     .status(200)
-    .clearCookies("accessToken", options)
-    .clearCookies("refreshToken", options)
-    .json(new ApiResponse(200,{},"User logged out"))
+    .clearCookie("accessToken", options)
+    .clearCookie("refreshToken", options)
+    .json(new ApiResponse(200, {}, "User logged out"));
 });
 export { registerUser, loginUser, logoutUser };
