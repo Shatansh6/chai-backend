@@ -43,9 +43,9 @@ const userSchema = new Schema(
       type: String,
       required: true,
     },
-    refreshToken:{
-      type: String
-    }
+    refreshToken: {
+      type: String,
+    },
   },
   { timestamps: true }
 );
@@ -69,7 +69,7 @@ userSchema.methods.generateAccessToken = function () {
       email: this.email,
       username: this.username,
     },
-    process.env.ACCESS_TOKEN_SECRET,
+    process.env.ACCESS_SECRET_TOKEN,
     {
       expiresIn: process.env.ACCESS_TOKEN_EXPIRY,
     }
