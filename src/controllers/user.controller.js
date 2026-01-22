@@ -5,6 +5,7 @@ import { uploadOnClaudinary } from "../utils/claudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken";
 import { response } from "express";
+
 const generateRefreshAndAccessToken = async (userId) => {
   const user = await User.findById(userId);
 
@@ -32,7 +33,7 @@ const registerUser = asyncHandler(async (req, res) => {
   // 1️⃣ Validate fields
   if (
     [fullname, email, username, password].some(
-      (field) => !field || field.trim() === ""
+      (field) => !field || field.trim() === "",
     )
   ) {
     throw new ApiError(400, "All fields are required");
@@ -79,7 +80,7 @@ const registerUser = asyncHandler(async (req, res) => {
 
   // 7️⃣ Remove sensitive fields
   const createdUser = await User.findById(userDoc._id).select(
-    "-password -refreshToken"
+    "-password -refreshToken",
   );
 
   if (!createdUser) {
@@ -118,10 +119,10 @@ const loginUser = asyncHandler(async (req, res) => {
     throw new ApiError(404, "invalid user credential");
   }
   const { accessToken, refreshToken } = await generateRefreshAndAccessToken(
-    user._id
+    user._id,
   );
   const loggedInUser = await User.findById(user._id).select(
-    "-password -refreshToken"
+    "-password -refreshToken",
   );
 
   const options = {
@@ -142,8 +143,8 @@ const loginUser = asyncHandler(async (req, res) => {
           refreshToken,
           accessToken,
         },
-        "user logged in successfully"
-      )
+        "user logged in successfully",
+      ),
     );
 });
 
@@ -157,7 +158,7 @@ const logoutUser = asyncHandler(async (req, res) => {
     },
     {
       new: true,
-    }
+    },
   );
   const options = {
     httpOnly: true,
@@ -178,7 +179,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
   try {
     const decodedToken = jwt.verify(
       incomingToken,
-      process.env.REFRESH_TOKEN_SECRET
+      process.env.REFRESH_TOKEN_SECRET,
     );
     const user = await User.findById(decodedToken._id);
     if (!user) {
@@ -201,8 +202,8 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
         new ApiResponse(
           200,
           { refreshToken: newRefreshToken },
-          "Access token refreshed successfully"
-        )
+          "Access token refreshed successfully",
+        ),
       );
   } catch (error) {
     throw new ApiError(401, error?.message || "Invalid refresh token");
@@ -247,7 +248,7 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
         email: email,
       },
     },
-    { new: true }
+    { new: true },
   ).select("-password");
   return res
     .status(200)
@@ -271,36 +272,101 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
         avatar: avatar.url,
       },
     },
-    { new: true }
+    { new: true },
   ).select("-password");
   return res
     .status(200)
     .json(new ApiResponse(200, {}, "avatar updated sucessfully"));
 });
 
-const updateUserCoverImage = asyncHandler(async(req, res)=>{
+const updateUserCoverImage = asyncHandler(async (req, res) => {
   const coverImageLocalPath = req.file?.path;
-  if(!coverImageLocalPath){
-    throw new ApiError(400,"coverImagePath not found")
+  if (!coverImageLocalPath) {
+    throw new ApiError(400, "coverImagePath not found");
   }
-  const coverImage = await uploadOnClaudinary(coverImageLocalPath)
-  if(!coverImage){
-    throw new ApiError(400,"coverImage is not uploaded on claudinary")
+  const coverImage = await uploadOnClaudinary(coverImageLocalPath);
+  if (!coverImage) {
+    throw new ApiError(400, "coverImage is not uploaded on claudinary");
   }
   await User.findByIdAndUpdate(
     req.user?._id,
 
     {
-      $set:{
-        coverimage: coverImage.url
+      $set: {
+        coverimage: coverImage.url,
+      },
+    },
+    { new: true },
+  ).select("-password");
+  return res.status(200).json(200, {}, "coverImage updated sucessfully");
+});
+
+const getUserChannelProfile = asyncHandler(async (req, res) => {
+  const { username } = req.params;
+
+  if (!username?.trim()) {
+    throw new ApiError(400, "username not found");
+  }
+  const channel = User.aggregate([
+    {
+      $match: {
+        username: username?.toLowerCase(),
+      },
+    },
+    {
+      $lookup: {
+        from: "subscriptions",
+        localField: "_id",
+        foreignField: "channel",
+        as: "subscribers",
+      },
+    },
+    {
+      $lookup: {
+        from: "subscriptions",
+        localField: "_id",
+        foreignField: "subscriber",
+        as: "subscribedTo",
+      } 
+    },
+    {
+      $addFields: {
+        subscribersCount: {
+          $size: "$subscribes"
+        },
+        channelSubscribedToCount:{
+          $size: "$subscribedTo"
+        },
+        isScubscribed:{
+          $cond: {
+            if:{$in:[req.user?._id, "$subscribers.subscribe"]},
+            then: true,
+            else: false
+          }
+        }
       }
     },
-    {new:true}
-  ).select("-password");
-  return res
-  .status(200)
-  .json(200,{},"coverImage updated sucessfully")
-})
+    {
+    $project: {
+      fullname: 1,
+      username: 1,
+      subscribersCount: 1,
+      channelSubscribedToCount: 1,
+      isScubscribed: 1,
+      avatar: 1,
+      coverImage: 1,
+      email: 1
+    }
+  }
+  ]);
+
+if(!channel?.length){
+  throw new ApiError(400, "channel not found")
+}
+return res
+.status(200)
+.json(new ApiResponse(200, channel[0],"user channel fetched sucessfully"));
+});
 export {
   registerUser,
   loginUser,
@@ -310,5 +376,6 @@ export {
   getCurrentUser,
   updateAccountDetails,
   updateUserAvatar,
-  updateUserCoverImage
+  updateUserCoverImage,
+  getUserChannelProfile
 };
